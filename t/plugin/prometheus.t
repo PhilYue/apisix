@@ -151,7 +151,7 @@ apisix_etcd_reachable 1
 --- request
 GET /apisix/prometheus/metrics
 --- response_body eval
-qr/apisix_bandwidth\{type="egress",route="1",service="",node="127.0.0.1"\} \d+/
+qr/apisix_bandwidth\{type="egress",route="1",service="",consumer="",node="127.0.0.1"\} \d+/
 --- no_error_log
 [error]
 
@@ -293,7 +293,7 @@ passed
 --- request
 GET /apisix/prometheus/metrics
 --- response_body eval
-qr/apisix_bandwidth\{type="egress",route="1",service="",node="127.0.0.1"\} \d+/
+qr/apisix_bandwidth\{type="egress",route="1",service="",consumer="",node="127.0.0.1"\} \d+/
 --- no_error_log
 [error]
 
@@ -303,7 +303,7 @@ qr/apisix_bandwidth\{type="egress",route="1",service="",node="127.0.0.1"\} \d+/
 --- request
 GET /apisix/prometheus/metrics
 --- response_body eval
-qr/apisix_http_latency_count\{type="request",service="",node="127.0.0.1"\} \d+/
+qr/apisix_http_latency_count\{type="request",route="1",service="",consumer="",node="127.0.0.1"\} \d+/
 --- no_error_log
 [error]
 
@@ -344,7 +344,7 @@ passed
 
 
 
-=== TEST 16: use service 1 in route 1
+=== TEST 16: use service 1 in route 2
 --- config
     location /t {
         content_by_lua_block {
@@ -386,7 +386,7 @@ passed
 --- request
 GET /apisix/prometheus/metrics
 --- response_body eval
-qr/apisix_bandwidth\{type="egress",route="2",service="1",node="127.0.0.1"\} \d+/
+qr/apisix_bandwidth\{type="egress",route="2",service="1",consumer="",node="127.0.0.1"\} \d+/
 --- no_error_log
 [error]
 
@@ -521,17 +521,17 @@ passed
 --- request
 GET /apisix/prometheus/metrics
 --- response_body eval
-qr/apisix_http_status\{code="404",route="3",service="",node="127.0.0.1"\} 2/
+qr/apisix_http_status\{code="404",route="3",matched_uri="\/hello3",matched_host="",service="",consumer="",node="127.0.0.1"\} 2/
 --- no_error_log
 [error]
 
 
 
-=== TEST 25: fetch the prometheus metric data with `overhead`
+=== TEST 25: fetch the prometheus metric data with apisix latency
 --- request
 GET /apisix/prometheus/metrics
 --- response_body eval
-qr/.*apisix_http_overhead_bucket.*/
+qr/.*apisix_http_latency_bucket\{type="apisix".*/
 --- no_error_log
 [error]
 
@@ -610,11 +610,11 @@ passed
 
 
 
-=== TEST 29: fetch the prometheus metric data with `overhead`(the overhead < 1s)
+=== TEST 29: fetch the prometheus metric data with apisix latency (latency < 1s)
 --- request
 GET /apisix/prometheus/metrics
 --- response_body eval
-qr/apisix_http_overhead_bucket.*service=\"3\".*le=\"00500.0.*/
+qr/apisix_http_latency_bucket\{type="apisix".*service=\"3\".*le=\"500.*/
 --- no_error_log
 [error]
 
@@ -771,5 +771,41 @@ qr/apisix_etcd_modify_indexes\{key="prev_index"\} \d+/
 GET /apisix/prometheus/metrics
 --- response_body_like eval
 qr/apisix_etcd_modify_indexes\{key="x_etcd_index"\} \d+/
+--- no_error_log
+[error]
+
+
+
+=== TEST 43: fetch the prometheus metric data -- hostname
+--- request
+GET /apisix/prometheus/metrics
+--- response_body eval
+qr/apisix_node_info\{hostname=".*"\} 1/
+--- no_error_log
+[error]
+
+
+
+=== TEST 44: don't try to provide etcd metrics when you don't use it
+--- yaml_config
+apisix:
+    node_listen: 1984
+    config_center: yaml
+    enable_admin: false
+--- apisix_yaml
+routes:
+  -
+    uri: /hello
+    upstream:
+        nodes:
+            "127.0.0.1:1980": 1
+        type: roundrobin
+#END
+--- request
+GET /apisix/prometheus/metrics
+--- response_body_like eval
+qr/apisix_/
+--- response_body_unlike eval
+qr/etcd/
 --- no_error_log
 [error]

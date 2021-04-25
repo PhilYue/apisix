@@ -173,6 +173,7 @@ GET /t
     location /t {
         content_by_lua_block {
             local t = require("lib.test_admin").test
+            local etcd = require("apisix.core.etcd")
             local code, message, res = t('/apisix/admin/routes',
                  ngx.HTTP_POST,
                  [[{
@@ -213,6 +214,12 @@ GET /t
             ngx.say("[push] code: ", code, " message: ", message)
 
             local id = string.sub(res.node.key, #"/apisix/routes/" + 1)
+            local res = assert(etcd.get('/routes/' .. id))
+            local create_time = res.body.node.value.create_time
+            assert(create_time ~= nil, "create_time is nil")
+            local update_time = res.body.node.value.update_time
+            assert(update_time ~= nil, "update_time is nil")
+
             code, message = t('/apisix/admin/routes/' .. id,
                  ngx.HTTP_DELETE,
                  nil,
@@ -239,6 +246,7 @@ GET /t
         content_by_lua_block {
             local core = require("apisix.core")
             local t = require("lib.test_admin").test
+            local etcd = require("apisix.core.etcd")
             local code, message, res = t('/apisix/admin/routes/1',
                  ngx.HTTP_PUT,
                  [[{
@@ -273,6 +281,12 @@ GET /t
             end
 
             ngx.say("[push] code: ", code, " message: ", message)
+
+            local res = assert(etcd.get('/routes/1'))
+            local create_time = res.body.node.value.create_time
+            assert(create_time ~= nil, "create_time is nil")
+            local update_time = res.body.node.value.update_time
+            assert(update_time ~= nil, "update_time is nil")
         }
     }
 --- request
@@ -291,17 +305,17 @@ GET /t
             local core = require("apisix.core")
             local t = require("lib.test_admin").test
             local code, message, res = t('/apisix/admin/routes/1',
-                 ngx.HTTP_PUT,
-                 [[{
-                        "plugins": {
-                            "limit-count": {
-                                "count": 2,
-                                "time_window": 60,
-                                "rejected_code": 503,
-                                "key": "remote_addr"
-                            }
-                        },
-                        "uri": "/index.html"
+                ngx.HTTP_PUT,
+                [[{
+                    "plugins": {
+                        "limit-count": {
+                            "count": 2,
+                            "time_window": 60,
+                            "rejected_code": 503,
+                            "key": "remote_addr"
+                        }
+                    },
+                    "uri": "/index.html"
                 }]],
                 [[{
                     "node": {
@@ -339,35 +353,7 @@ GET /t
 
 
 
-=== TEST 8: invalid empty plugins (todo)
-    location /t {
-        content_by_lua_block {
-            local core = require("apisix.core")
-            local t = require("lib.test_admin").test
-            local code, message, res = t('/apisix/admin/routes/1',
-                 ngx.HTTP_PUT,
-                 [[{
-                        "uri": "/index.html"
-                }]]
-                )
-
-            if code ~= 200 then
-                ngx.status = code
-                ngx.print(message)
-                return
-            end
-
-            ngx.say("[push] code: ", code, " message: ", message)
-        }
-    }
---- request
-GET /t
---- error_code: 400
---- SKIP
-
-
-
-=== TEST 9: invalid route: duplicate method
+=== TEST 8: invalid route: duplicate method
 --- config
     location /t {
         content_by_lua_block {
@@ -399,7 +385,7 @@ GET /t
 
 
 
-=== TEST 10: invalid method
+=== TEST 9: invalid method
 --- config
     location /t {
         content_by_lua_block {
@@ -420,13 +406,13 @@ GET /t
 GET /t
 --- error_code: 400
 --- response_body
-{"error_msg":"invalid configuration: property \"methods\" validation failed: failed to validate item 1: matches non of the enum values"}
+{"error_msg":"invalid configuration: property \"methods\" validation failed: failed to validate item 1: matches none of the enum values"}
 --- no_error_log
 [error]
 
 
 
-=== TEST 11: invalid service id
+=== TEST 10: invalid service id
 --- config
     location /t {
         content_by_lua_block {
@@ -453,7 +439,7 @@ GET /t
 
 
 
-=== TEST 12: service id: not exist
+=== TEST 11: service id: not exist
 --- config
     location /t {
         content_by_lua_block {
@@ -480,7 +466,7 @@ GET /t
 
 
 
-=== TEST 13: invalid id
+=== TEST 12: invalid id
 --- config
     location /t {
         content_by_lua_block {
@@ -507,7 +493,7 @@ GET /t
 
 
 
-=== TEST 14: id in the rule
+=== TEST 13: id in the rule
 --- config
     location /t {
         content_by_lua_block {
@@ -534,7 +520,7 @@ passed
 
 
 
-=== TEST 15: integer id less than 1
+=== TEST 14: integer id less than 1
 --- config
     location /t {
         content_by_lua_block {
@@ -561,7 +547,7 @@ GET /t
 
 
 
-=== TEST 16: invalid upstream_id
+=== TEST 15: invalid upstream_id
 --- config
     location /t {
         content_by_lua_block {
@@ -588,7 +574,7 @@ GET /t
 
 
 
-=== TEST 17: not exist upstream_id
+=== TEST 16: not exist upstream_id
 --- config
     location /t {
         content_by_lua_block {
@@ -615,7 +601,7 @@ GET /t
 
 
 
-=== TEST 18: wrong route id, do not need it
+=== TEST 17: wrong route id, do not need it
 --- config
     location /t {
         content_by_lua_block {
@@ -643,7 +629,7 @@ GET /t
 
 
 
-=== TEST 19: wrong route id, do not need it
+=== TEST 18: wrong route id, do not need it
 --- config
     location /t {
         content_by_lua_block {
@@ -670,23 +656,27 @@ GET /t
 
 
 
-=== TEST 20: limit-count with `disable` option
+=== TEST 19: limit-count with `disable` option
 --- config
     location /t {
         content_by_lua_block {
             local core = require("apisix.core")
             local t = require("lib.test_admin").test
             local code, message, res = t('/apisix/admin/routes/1',
-                 ngx.HTTP_PUT,
-                 [[{
+                ngx.HTTP_PUT,
+                [[{
                     "plugins": {
                         "limit-count": {
+                            "count": 2,
+                            "time_window": 60,
+                            "rejected_code": 503,
+                            "key": "remote_addr",
                             "disable": true
                         }
                     },
                     "uri": "/index.html"
                 }]]
-                )
+            )
 
             if code >= 300 then
                 ngx.status = code
@@ -706,7 +696,7 @@ GET /t
 
 
 
-=== TEST 21: host: *.foo.com
+=== TEST 20: host: *.foo.com
 --- config
     location /t {
         content_by_lua_block {
@@ -754,7 +744,7 @@ passed
 
 
 
-=== TEST 22: invalid host: a.*.foo.com
+=== TEST 21: invalid host: a.*.foo.com
 --- config
     location /t {
         content_by_lua_block {
@@ -780,14 +770,14 @@ passed
 --- request
 GET /t
 --- error_code: 400
---- response_body
-{"error_msg":"invalid configuration: property \"host\" validation failed: failed to match pattern \"^\\\\*?[0-9a-zA-Z-.]+$\" with \"a.*.foo.com\""}
+--- response_body_like
+{"error_msg":"invalid configuration: property \\"host\\" validation failed: failed to match pattern .*
 --- no_error_log
 [error]
 
 
 
-=== TEST 23: invalid host: *.a.*.foo.com
+=== TEST 22: invalid host: *.a.*.foo.com
 --- config
     location /t {
         content_by_lua_block {
@@ -813,14 +803,14 @@ GET /t
 --- request
 GET /t
 --- error_code: 400
---- response_body
-{"error_msg":"invalid configuration: property \"host\" validation failed: failed to match pattern \"^\\\\*?[0-9a-zA-Z-.]+$\" with \"*.a.*.foo.com\""}
+--- response_body_like
+{"error_msg":"invalid configuration: property \\"host\\" validation failed: failed to match pattern .*
 --- no_error_log
 [error]
 
 
 
-=== TEST 24: remote_addr: 127.0.0.1
+=== TEST 23: remote_addr: 127.0.0.1
 --- config
     location /t {
         content_by_lua_block {
@@ -870,7 +860,7 @@ passed
 
 
 
-=== TEST 25: remote_addr: 127.0.0.1/24
+=== TEST 24: remote_addr: 127.0.0.1/24
 --- config
     location /t {
         content_by_lua_block {
@@ -920,7 +910,7 @@ passed
 
 
 
-=== TEST 26: remote_addr: 127.0.0.33333
+=== TEST 25: remote_addr: 127.0.0.33333
 --- config
     location /t {
         content_by_lua_block {
@@ -955,7 +945,7 @@ GET /t
 
 
 
-=== TEST 27: all method
+=== TEST 26: all method
 --- config
     location /t {
         content_by_lua_block {
@@ -988,11 +978,19 @@ passed
 
 
 
-=== TEST 28: patch route(new uri)
+=== TEST 27: patch route(new uri)
 --- config
     location /t {
         content_by_lua_block {
             local t = require("lib.test_admin").test
+            local etcd = require("apisix.core.etcd")
+
+            local id = 1
+            local res = assert(etcd.get('/routes/' .. id))
+            local prev_create_time = res.body.node.value.create_time
+            local prev_update_time = res.body.node.value.update_time
+            ngx.sleep(1)
+
             local code, body = t('/apisix/admin/routes/1',
                 ngx.HTTP_PATCH,
                 [[{
@@ -1005,12 +1003,18 @@ passed
                         },
                         "key": "/apisix/routes/1"
                     },
-                    "action": "set"
+                    "action": "compareAndSwap"
                 }]]
             )
 
             ngx.status = code
             ngx.say(body)
+
+            local res = assert(etcd.get('/routes/' .. id))
+            local create_time = res.body.node.value.create_time
+            assert(prev_create_time == create_time, "create_time mismatched")
+            local update_time = res.body.node.value.update_time
+            assert(prev_update_time ~= update_time, "update_time should be changed")
         }
     }
 --- request
@@ -1022,7 +1026,7 @@ passed
 
 
 
-=== TEST 29: patch route(multi)
+=== TEST 28: patch route(multi)
 --- config
     location /t {
         content_by_lua_block {
@@ -1056,7 +1060,7 @@ passed
                         },
                         "key": "/apisix/routes/1"
                     },
-                    "action": "set"
+                    "action": "compareAndSwap"
                 }]]
             )
 
@@ -1073,7 +1077,7 @@ passed
 
 
 
-=== TEST 30: patch route(new methods)
+=== TEST 29: patch route(new methods)
 --- config
     location /t {
         content_by_lua_block {
@@ -1090,7 +1094,7 @@ passed
                         },
                         "key": "/apisix/routes/1"
                     },
-                    "action": "set"
+                    "action": "compareAndSwap"
                 }]]
             )
 
@@ -1107,7 +1111,7 @@ passed
 
 
 
-=== TEST 31: patch route(minus methods)
+=== TEST 30: patch route(minus methods)
 --- config
     location /t {
         content_by_lua_block {
@@ -1124,7 +1128,7 @@ passed
                         },
                         "key": "/apisix/routes/1"
                     },
-                    "action": "set"
+                    "action": "compareAndSwap"
                 }]]
             )
 
@@ -1141,7 +1145,7 @@ passed
 
 
 
-=== TEST 32: patch route(new methods - sub path way)
+=== TEST 31: patch route(new methods - sub path way)
 --- config
     location /t {
         content_by_lua_block {
@@ -1158,7 +1162,7 @@ passed
                         },
                         "key": "/apisix/routes/1"
                     },
-                    "action": "set"
+                    "action": "compareAndSwap"
                 }]]
             )
 
@@ -1175,7 +1179,7 @@ passed
 
 
 
-=== TEST 33: patch route(new uri)
+=== TEST 32: patch route(new uri)
 --- config
     location /t {
         content_by_lua_block {
@@ -1190,7 +1194,7 @@ passed
                         },
                         "key": "/apisix/routes/1"
                     },
-                    "action": "set"
+                    "action": "compareAndSwap"
                 }]]
             )
 
@@ -1207,7 +1211,7 @@ passed
 
 
 
-=== TEST 34: patch route(whole)
+=== TEST 33: patch route(whole)
 --- config
     location /t {
         content_by_lua_block {
@@ -1242,7 +1246,7 @@ passed
                         },
                         "key": "/apisix/routes/1"
                     },
-                    "action": "set"
+                    "action": "compareAndSwap"
                 }]]
             )
 
@@ -1259,7 +1263,7 @@ passed
 
 
 
-=== TEST 35: multiple hosts
+=== TEST 34: multiple hosts
 --- config
     location /t {
         content_by_lua_block {
@@ -1299,7 +1303,7 @@ passed
 
 
 
-=== TEST 36: enable hosts and host together
+=== TEST 35: enable hosts and host together
 --- config
     location /t {
         content_by_lua_block {
@@ -1334,7 +1338,7 @@ GET /t
 
 
 
-=== TEST 37: multiple remote_addrs
+=== TEST 36: multiple remote_addrs
 --- config
     location /t {
         content_by_lua_block {
@@ -1374,7 +1378,7 @@ passed
 
 
 
-=== TEST 38: multiple vars
+=== TEST 37: multiple vars
 --- config
     location /t {
         content_by_lua_block {
@@ -1414,7 +1418,7 @@ passed
 
 
 
-=== TEST 39: filter function
+=== TEST 38: filter function
 --- config
     location /t {
         content_by_lua_block {
@@ -1453,7 +1457,7 @@ passed
 
 
 
-=== TEST 40: filter function (invalid)
+=== TEST 39: filter function (invalid)
 --- config
     location /t {
         content_by_lua_block {
@@ -1486,7 +1490,7 @@ GET /t
 
 
 
-=== TEST 41: Support for multiple URIs
+=== TEST 40: Support for multiple URIs
 --- config
     location /t {
         content_by_lua_block {
@@ -1517,7 +1521,7 @@ passed
 
 
 
-=== TEST 42: set route with ttl
+=== TEST 41: set route with ttl
 --- config
 location /t {
     content_by_lua_block {
@@ -1557,7 +1561,8 @@ location /t {
         ngx.say("code: ", code)
         ngx.say(body)
 
-        ngx.sleep(2)
+        -- etcd v3 would still get the value at 2s, don't know why yet
+        ngx.sleep(2.5)
 
         -- get again
         code, body, res = t('/apisix/admin/routes/1', ngx.HTTP_GET)
@@ -1581,7 +1586,7 @@ message: Key not found
 
 
 
-=== TEST 43: post route with ttl
+=== TEST 42: post route with ttl
 --- config
 location /t {
     content_by_lua_block {
@@ -1610,7 +1615,7 @@ location /t {
         end
 
         ngx.say("[push] succ: ", body)
-        ngx.sleep(2)
+        ngx.sleep(2.5)
 
         local id = string.sub(res.node.key, #"/apisix/routes/" + 1)
         code, body = t('/apisix/admin/routes/' .. id, ngx.HTTP_GET)
@@ -1631,7 +1636,7 @@ message: Key not found
 
 
 
-=== TEST 44: invalid argument: ttl
+=== TEST 43: invalid argument: ttl
 --- config
 location /t {
     content_by_lua_block {
@@ -1668,7 +1673,7 @@ GET /t
 
 
 
-=== TEST 45: set route(id: 1, check priority)
+=== TEST 44: set route(id: 1, check priority)
 --- config
     location /t {
         content_by_lua_block {
@@ -1710,7 +1715,7 @@ passed
 
 
 
-=== TEST 46: set route(id: 1 + priority: 0)
+=== TEST 45: set route(id: 1 + priority: 0)
 --- config
     location /t {
         content_by_lua_block {
@@ -1753,7 +1758,7 @@ passed
 
 
 
-=== TEST 47: set route(id: 1) and upstream(type:chash, default hash_on: vars, missing key)
+=== TEST 46: set route(id: 1) and upstream(type:chash, default hash_on: vars, missing key)
 --- config
     location /t {
         content_by_lua_block {
@@ -1785,7 +1790,7 @@ GET /t
 
 
 
-=== TEST 48: set route(id: 1) and upstream(type:chash, hash_on: header, missing key)
+=== TEST 47: set route(id: 1) and upstream(type:chash, hash_on: header, missing key)
 --- config
     location /t {
         content_by_lua_block {
@@ -1818,7 +1823,7 @@ GET /t
 
 
 
-=== TEST 49: set route(id: 1) and upstream(type:chash, hash_on: cookie, missing key)
+=== TEST 48: set route(id: 1) and upstream(type:chash, hash_on: cookie, missing key)
 --- config
     location /t {
         content_by_lua_block {
@@ -1851,7 +1856,7 @@ GET /t
 
 
 
-=== TEST 50: set route(id: 1) and upstream(type:chash, hash_on: consumer, missing key is ok)
+=== TEST 49: set route(id: 1) and upstream(type:chash, hash_on: consumer, missing key is ok)
 --- config
     location /t {
         content_by_lua_block {
@@ -1883,7 +1888,7 @@ passed
 
 
 
-=== TEST 51: set route(id: 1 + name: test name)
+=== TEST 50: set route(id: 1 + name: test name)
 --- config
     location /t {
         content_by_lua_block {
@@ -1925,7 +1930,7 @@ passed
 
 
 
-=== TEST 52: string id
+=== TEST 51: string id
 --- config
     location /t {
         content_by_lua_block {
@@ -1957,7 +1962,7 @@ passed
 
 
 
-=== TEST 53: string id(delete)
+=== TEST 52: string id(delete)
 --- config
     location /t {
         content_by_lua_block {
@@ -1980,7 +1985,7 @@ passed
 
 
 
-=== TEST 54: invalid string id
+=== TEST 53: invalid string id
 --- config
     location /t {
         content_by_lua_block {
@@ -2011,7 +2016,7 @@ GET /t
 
 
 
-=== TEST 55: Verify Response Content-Type=applciation/json
+=== TEST 54: Verify Response Content-Type=application/json
 --- config
     location /t {
         content_by_lua_block {
@@ -2038,7 +2043,7 @@ Content-Type: application/json
 
 
 
-=== TEST 56: set route with size 36k (temporary file to store request body)
+=== TEST 55: set route with size 36k (temporary file to store request body)
 --- config
     location /t {
         content_by_lua_block {
@@ -2077,7 +2082,7 @@ a client request body is buffered to a temporary file
 
 
 
-=== TEST 57: route size more than 1.5 MiB
+=== TEST 56: route size more than 1.5 MiB
 --- config
     location /t {
         content_by_lua_block {
@@ -2111,7 +2116,7 @@ failed to read request body: request size 1678025 is greater than the maximum si
 
 
 
-=== TEST 58: uri + plugins + script  failed
+=== TEST 57: uri + plugins + script  failed
 --- config
     location /t {
         content_by_lua_block {
@@ -2145,5 +2150,253 @@ GET /t
 --- error_code: 400
 --- response_body_like
 {"error_msg":"invalid configuration: value wasn't supposed to match schema"}
+--- no_error_log
+[error]
+
+
+
+=== TEST 58: invalid route: multi nodes with `node` mode to pass host
+--- config
+    location /t {
+        content_by_lua_block {
+            local t = require("lib.test_admin").test
+            local code, body = t('/apisix/admin/routes/1',
+                 ngx.HTTP_PUT,
+                 [[{
+                        "methods": ["GET", "GET"],
+                        "upstream": {
+                            "nodes": {
+                                "httpbin.org:8080": 1,
+                                "test.com:8080": 1
+                            },
+                            "type": "roundrobin",
+                            "pass_host": "node"
+                        },
+                        "uri": "/index.html"
+                }]]
+                )
+
+            ngx.status = code
+            ngx.print(body)
+        }
+    }
+--- request
+GET /t
+--- error_code: 400
+--- no_error_log
+[error]
+
+
+
+=== TEST 59: set route(with labels)
+--- config
+    location /t {
+        content_by_lua_block {
+            local t = require("lib.test_admin").test
+            local code, body = t('/apisix/admin/routes/1',
+                ngx.HTTP_PUT,
+                [[{
+                    "methods": ["GET"],
+                    "upstream": {
+                        "nodes": {
+                            "127.0.0.1:8080": 1
+                        },
+                        "type": "roundrobin"
+                    },
+                    "labels": {
+                        "build": "16",
+                        "env": "production",
+                        "version": "v2"
+                    },
+
+                    "uri": "/index.html"
+                }]],
+                [[{
+                    "node": {
+                        "value": {
+                            "methods": [
+                                "GET"
+                            ],
+                            "uri": "/index.html",
+                            "upstream": {
+                                "nodes": {
+                                    "127.0.0.1:8080": 1
+                                },
+                                "type": "roundrobin"
+                            },
+                            "labels": {
+                                "build": "16",
+                                "env": "production",
+                                "version": "v2"
+                            }
+                        },
+                        "key": "/apisix/routes/1"
+                    },
+                    "action": "set"
+                }]]
+                )
+
+            ngx.status = code
+            ngx.say(body)
+        }
+    }
+--- request
+GET /t
+--- response_body
+passed
+--- no_error_log
+[error]
+
+
+
+=== TEST 60: patch route(change labels)
+--- config
+    location /t {
+        content_by_lua_block {
+            local t = require("lib.test_admin").test
+            local code, body = t('/apisix/admin/routes/1',
+                ngx.HTTP_PATCH,
+                [[{
+                    "labels": {
+                        "build": "17"
+                    }
+                }]],
+                [[{
+                    "node": {
+                        "value": {
+                            "methods": [
+                                "GET"
+                            ],
+                            "uri": "/index.html",
+                            "upstream": {
+                                "nodes": {
+                                    "127.0.0.1:8080": 1
+                                },
+                                "type": "roundrobin"
+                            },
+                            "labels": {
+                                "env": "production",
+                                "version": "v2",
+                                "build": "17"
+                            }
+                        },
+                        "key": "/apisix/routes/1"
+                    },
+                    "action": "compareAndSwap"
+                }]]
+            )
+
+            ngx.status = code
+            ngx.say(body)
+        }
+    }
+--- request
+GET /t
+--- response_body
+passed
+--- no_error_log
+[error]
+
+
+
+=== TEST 61: invalid format of label value: set route
+--- config
+    location /t {
+        content_by_lua_block {
+            local t = require("lib.test_admin").test
+            local code, body = t('/apisix/admin/routes/1',
+                 ngx.HTTP_PUT,
+                 [[{
+                        "methods": ["GET"],
+                        "uri": "/index.html",
+                        "labels": {
+	                        "env": ["production", "release"]
+                        }
+                }]]
+                )
+
+            ngx.status = code
+            ngx.print(body)
+        }
+    }
+--- request
+GET /t
+--- error_code: 400
+--- response_body
+{"error_msg":"invalid configuration: property \"labels\" validation failed: failed to validate env (matching \".*\"): wrong type: expected string, got table"}
+--- no_error_log
+[error]
+
+
+
+=== TEST 62: create route with create_time and update_time(id : 1)
+--- config
+    location /t {
+        content_by_lua_block {
+            local t = require("lib.test_admin").test
+            local code, body = t('/apisix/admin/routes/1',
+                ngx.HTTP_PUT,
+                [[{
+                    "upstream": {
+                        "nodes": {
+                            "127.0.0.1:8080": 1
+                        },
+                        "type": "roundrobin"
+                    },
+                    "uri": "/index.html",
+                    "create_time": 1602883670,
+                    "update_time": 1602893670
+                }]],
+                [[{
+                    "node": {
+                        "value": {
+                            "uri": "/index.html",
+                            "upstream": {
+                                "nodes": {
+                                    "127.0.0.1:8080": 1
+                                },
+                                "type": "roundrobin"
+                            },
+                            "create_time": 1602883670,
+                            "update_time": 1602893670
+                        },
+                        "key": "/apisix/routes/1"
+                    },
+                    "action": "set"
+                }]]
+                )
+
+            ngx.status = code
+            ngx.say(body)
+        }
+    }
+--- request
+GET /t
+--- response_body
+passed
+--- no_error_log
+[error]
+
+
+
+=== TEST 63: delete test route(id : 1)
+--- config
+    location /t {
+        content_by_lua_block {
+            local t = require("lib.test_admin").test
+            local code, message = t('/apisix/admin/routes/1',
+                 ngx.HTTP_DELETE,
+                 nil,
+                 [[{
+                    "action": "delete"
+                }]]
+                )
+            ngx.say("[delete] code: ", code, " message: ", message)
+        }
+    }
+--- request
+GET /t
+--- response_body
+[delete] code: 200 message: passed
 --- no_error_log
 [error]
