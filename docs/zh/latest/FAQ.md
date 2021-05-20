@@ -58,7 +58,7 @@ APISIX 是当前性能最好的 API 网关，单核 QPS 达到 2.3 万，平均�
 4. 变化通知
 5. 高性能
 
-APISIX 需要一个配置中心，上面提到的很多功能是传统关系型数据库和 KV 数据库是无法提供的。与 etcd 同类软件还有 Consul、ZooKeeper 等，更详细比较可以参考这里：[etcd why](https://github.com/etcd-io/website/blob/master/content/docs/next/learning/why.md#comparison-chart)，在将来也许会支持其他配置存储方案。
+APISIX 需要一个配置中心，上面提到的很多功能是传统关系型数据库和 KV 数据库是无法提供的。与 etcd 同类软件还有 Consul、ZooKeeper 等，更详细比较可以参考这里：[etcd why](https://github.com/etcd-io/website/blob/master/content/en/docs/next/learning/why.md#comparison-chart)，在将来也许会支持其他配置存储方案。
 
 ## 为什么在用 Luarocks 安装 APISIX 依赖时会遇到超时，很慢或者不成功的情况？
 
@@ -307,6 +307,11 @@ etcd --enable-grpc-gateway --data-dir=/path/to/data
 }
 ```
 
+```yml
+# etcd.conf.yml
+enable-grpc-gateway: true
+```
+
 事实上这种差别已经在 etcd 的 master 分支中消除，但并没有向后移植到已经发布的版本中，所以在部署 etcd 集群时，依然需要小心。
 
 ## 如何创建高可用的 Apache APISIX 集群？
@@ -467,3 +472,17 @@ HTTP/1.1 200 OK
 ```
 
 路由创建成功，表示 `X-API-KEY` 修改生效。
+
+## 如何允许所有 IP 访问 Admin API
+
+Apache APISIX 默认只允许 `127.0.0.0/24` 的 IP 段范围访问 `Admin API`，如果你想允许所有的 IP 访问，那么你只需在 `conf/config.yaml` 配置文件中添加如下的配置。
+
+```yaml
+apisix:
+  allow_admin:
+    - 0.0.0.0/0
+```
+
+重启或 reload APISIX，所有 IP 便可以访问 `Admin API`。
+
+**注意：您可以在非生产环境中使用此方法，以允许所有客户端从任何地方访问您的 `Apache APISIX` 实例，但是在生产环境中使用它并不安全。在生产环境中，请仅授权特定的 IP 地址或地址范围访问您的实例。**

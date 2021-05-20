@@ -59,7 +59,7 @@ For the configuration center, configuration storage is only the most basic funct
 4. Change Notification
 5. High Performance
 
-See more [etcd why](https://github.com/etcd-io/website/blob/master/content/docs/next/learning/why.md#comparison-chart).
+See more [etcd why](https://github.com/etcd-io/website/blob/master/content/en/docs/next/learning/why.md#comparison-chart).
 
 ## Why is it that installing APISIX dependencies with Luarocks causes timeout, slow or unsuccessful installation?
 
@@ -306,6 +306,11 @@ Note this option is not shown in the output of `etcd --help`.
 }
 ```
 
+```yml
+# etcd.conf.yml
+enable-grpc-gateway: true
+```
+
 Indeed this distinction was eliminated by etcd in their master branch, but not backport to announced versions, so be care when deploy your etcd cluster.
 
 ## How to set up high available Apache APISIX clusters?
@@ -468,3 +473,17 @@ HTTP/1.1 200 OK
 ```
 
 The route was created successfully. It means that the modification of `X-API-KEY` takes effect.
+
+## How to allow all IPs to access Admin API
+
+By default, Apache APISIX only allows the IP range of `127.0.0.0/24` to access the `Admin API`. If you want to allow all IP access, then you only need to add the following configuration in the `conf/config.yaml` configuration file.
+
+```yaml
+apisix:
+  allow_admin:
+    - 0.0.0.0/0
+```
+
+Restart or reload APISIX, all IPs can access the `Admin API`.
+
+**Note: You can use this method in a non-production environment to allow all clients from anywhere to access your `Apache APISIX` instances, but it is not safe to use it in a production environment. In production environment, please only authorize specific IP addresses or address ranges to access your instance.**
