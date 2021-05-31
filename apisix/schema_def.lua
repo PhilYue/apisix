@@ -389,6 +389,19 @@ local upstream_schema = {
             description = "discovery type",
             type = "string",
         },
+        discovery_args = {
+            type = "object",
+            properties = {
+                namespace_id = {
+                    description = "namespace id",
+                    type = "string",
+                },
+                group_name = {
+                    description = "group name",
+                    type = "string",
+                },
+            }
+        },
         pass_host = {
             description = "mod of host passing",
             type = "string",
